@@ -4,3 +4,9 @@
 [submodule "3th/pthread"]
 	path = 3th/pthread
 	url = https://github.com/GerHobbelt/pthread-win32.git
+[submodule "3th/pcre"]
+	path = 3th/pcre
+	url = https://github.com/PhilipHazel/pcre2.git
+[submodule "3th/ssh2"]
+	path = 3th/ssh2
+	url = https://github.com/libssh2/libssh2.git
