@@ -1,64 +1,39 @@
+/**
+ *\copyright    XT Tech. Co., Ltd.
+ *\file         config.h
+ *\author       xt
+ *\version      1.0.0
+ *\date         2022.02.08
+ *\brief        配置模块定义,UTF-8(No BOM)
+ */
+#ifndef _CONFIG_H_
+#define _CONFIG_H_
+#include "xt_log.h"
+#include "xt_ssh2.h"
+#include "xt_monitor.h"
 
-#include "common/xt_log.h"
+#define SSH_SIZE    8
+#define MNT_SIZE    8
 
-enum
-{
-    TYPE_IS_NULL,
-    TYPE_IS_FILE,
-    TYPE_IS_DIR,
-    CMD_CREATE,
-    CMD_DELETE,
-    CMD_RENAME,
-    CMD_MODIFY,
-};
-
-typedef struct _event_head
-{
-    unsigned char cmd;
-    unsigned char type;
-    unsigned char mnt_id;
-    char filename[1];
-
-}event_head, *p_event_head;
-
-typedef struct _command
-{
-    int sleep;
-    char cmd[32];
-
-}command, *p_command;
-
-typedef struct _server
-{
-    int port;
-    char addr[32];
-    char user[32];
-    char pass[32];
-    void *ssh_param;
-    command cmd[16];
-
-}server, *p_server;
-
-typedef struct _monitor
-{
-    char localpath[512];
-    char remotepath[512];
-    char whitelist[32][256];
-    char blacklist[32][256];
-    void *whitelist_pcre[32];
-    void *blacklist_pcre[32];
-    p_server server;
-
-}monitor, *p_monitor;
-
+/// 配置数据
 typedef struct _config
 {
-    server srv[8];
-    monitor mnt[8];
-    log_info log;
+    xt_log          log;                    ///< 日志
 
-}config, *p_config;
+    int             ssh_count;              ///< 服务器数量
+    xt_ssh          ssh[SSH_SIZE];          ///< 服务器
 
-int load_config(p_config conf);
+    int             mnt_count;              ///< 监控器数量
+    xt_monitor      mnt[MNT_SIZE];          ///< 监控器
 
-int get_file_size(const char *filename);
+} config, *p_config;                        ///< 配置指针
+
+/**
+ *\brief        初始化配置
+ *\param[in]    filename    配置文件名
+ *\param[out]   cfg         配置数据
+ *\return       0           成功
+ */
+int config_init(const char *filename, p_config cfg);
+
+#endif

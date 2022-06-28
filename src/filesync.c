@@ -1,348 +1,42 @@
-﻿#include <stdio.h>
+/**
+ *\copyright    XT Tech. Co., Ltd.
+ *\file         filesync.c
+ *\author       xt
+ *\version      1.0.0
+ *\date         2022.02.08
+ *\brief        主模块,UTF-8(No BOM)
+ */
+#include <stdio.h>
 #include <stdlib.h>
-#include "common\xt_ssh2.h"
-#include "common\xt_sftp.h"
-#include "common\xt_zmodem.h"
-#include "common\xt_log.h"
-#include "common\xt_memory_pool.h"
-#include "common\xt_list_with_lock.h"
+#include <time.h>
+#include "xt_log.h"
+#include "xt_list.h"
+#include "xt_memory_pool.h"
+#include "xt_monitor.h"
+#include "xt_ssh2.h"
 #include "config.h"
-#include "monitor.h"
 
-#define SSHINITED 666
 
-config              g_conf = { 0 };     // 配置信息
-list_with_lock_node g_event_list;       // 队列
-pthread_mutex_t     g_cs;               // 锁
-time_t              g_last_time = 0;    // 上次执行命令时间
-char                g_buff[1024*1024];  // 输出缓冲区
+config              g_cfg                   = {0};  ///< 配置信息
 
-int init()
+xt_list             g_monitor_event_list    = {0};  ///< 监控事件队列
+
+xt_memory_pool      g_memory_pool           = {0};  ///< 内存池
+
+int output(void *param, const char *data, unsigned int len)
 {
-    if (load_config(&g_conf) != 0)
-    {
-        printf("%s load conf.json fail\n", __FUNCTION__);
-        return -1;
-    }
-
-    if (xt_log_init(&(g_conf.log)) != 0)
-    {
-        printf("%s init log fail\n", __FUNCTION__);
-        return -2;
-    }
-
-    list_with_lock_init(&g_event_list, "event_list");
-    memory_pool_init("pool1", 1000);
-    pthread_mutex_init(&g_cs, NULL);
-
-    DBG("init log,list,memory_pool success");
-    return 0;
-}
-
-int start_monitor()
-{
-    int i;
-    pthread_t tid;
-
-    for (i = 0; g_conf.mnt[i].server != NULL; i++)
-    {
-        pthread_create(&tid, NULL, monitor_thread, (void*)(__int64)i);
-    }
-
-    return (i == 0) ? -1 : 0;
-}
-
-void get_info(int num, char *info, int size)
-{
-    double k = num / 1024.0;
-    double m = num / (1024 * 1024.0);
-    double g = num / (1024 * 1024 * 1024.0);
-
-    if (g > 1.0)
-    {
-        sprintf_s(info, size, "%.2f G", g);
-    }
-    else if (m > 1.0)
-    {
-        sprintf_s(info, size, "%.2f M", m);
-    }
-    else if (k > 1.0)
-    {
-        sprintf_s(info, size, "%.2f K", k);
-    }
-    else
-    {
-        sprintf_s(info, size, "%d B", num);
-    }
-}
-
-void process_rz(p_my_ssh_param param, const char *local_filename, const char *remote_filename)
-{
-    char *ptr = strchr(g_buff, '*');
-
-    if (NULL == ptr)
-    {
-        return;
-    }
-
-    strcpy_s(ptr, sizeof(g_buff) - (ptr - g_buff) - 1, "\n");
-    printf(g_buff);
-
-    time_t t1 = time(NULL);
-
-    int len = 0;
-    int ret = file_put(param, local_filename, remote_filename, &len);
-
-    time_t t2 = time(NULL);
-
-    t1 = (t1 == t2) ? 1 : (t2 - t1);
-
-    struct tm t;
-    localtime_s(&t, &t2);
-
-    char info[32];
-    get_info(len, info, sizeof(info) - 1);
-
-    sprintf_s(g_buff, sizeof(g_buff) - 1,
-        "Starting zmodem transfer.Press Ctrl + C to cancel.\n"
-        "Transferring %s\n"
-        "%d-%02d-%02d %02d:%02d:%02d    %s    %d Second    %d Errors\n\n",
-        remote_filename,
-        t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
-        info,
-        (int)t1,
-        ret);
-
-    printf(g_buff);
-
-    ssh_recv_data(param, g_buff, sizeof(g_buff) - 1);
-}
-
-void process_sz(p_my_ssh_param param, const char *cmd, const char *local_filename)
-{
-    char *ptr = strchr(g_buff, '*');
-
-    if (NULL == ptr)
-    {
-        return;
-    }
-
-    strcpy_s(ptr, sizeof(g_buff) - (ptr - g_buff) - 1, "");
-
-    if (0 != strncmp(g_buff, cmd, strlen(cmd)) && (ptr = strstr(g_buff, "\r\n")) != NULL)
-    {
-        char *ptr1 = ptr + 3;
-        strcpy_s(ptr, sizeof(g_buff) - (ptr - g_buff) - 1, ptr1);
-    }
-
-    printf(g_buff);
-
-    time_t t1 = time(NULL);
-
-    int len = 0;
-    int ret = file_get(param, local_filename, &len);
-
-    time_t t2 = time(NULL);
-
-    t1 = (t1 == t2) ? 1 : (t2 - t1);
-
-    struct tm t;
-    localtime_s(&t, &t2);
-
-    char info[32];
-    get_info(len, info, sizeof(info) - 1);
-
-    sprintf_s(g_buff, sizeof(g_buff) - 1,
-        "Starting zmodem transfer.Press Ctrl + C to cancel.\n"
-        "Transferring %s\n"
-        "%d-%02d-%02d %02d:%02d:%02d    %s    %d Second    %d Errors\n\n",
-        local_filename,
-        t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
-        info,
-        (int)t1,
-        ret);
-
-    printf(g_buff);
-
-    ssh_recv_data(param, g_buff, sizeof(g_buff) - 1);
-}
-
-int send_cmd(p_my_ssh_param param, const char *cmd, int sleep, const char *local_filename, const char *remote_filename)
-{
-    pthread_mutex_lock(&g_cs);
-
-    int ret = ssh_send_data(param, cmd, (int)strlen(cmd));
-
-    if (ret < 0)
-    {
-        printf("%s error ret:%d\n", cmd, ret);
-        pthread_mutex_unlock(&g_cs);
-        return ret;
-    }
-
-    ssh_send_data(param, "\r", 1);
-
-    Sleep(sleep);
-
-    ret = ssh_recv_data(param, g_buff, sizeof(g_buff) - 1);
-
-    if (0 == strncmp(cmd, "rz", 2))
-    {
-        process_rz(param, local_filename, remote_filename);
-    }
-    else if (0 == strncmp(cmd, "sz", 2))
-    {
-        process_sz(param, cmd, local_filename);
-    }
-
-    printf(g_buff);
-    g_last_time = time(NULL);
-    pthread_mutex_unlock(&g_cs);
-    return ret;
-}
-
-int outputCallback(void *param, const char *data, unsigned int len)
-{
+    D(data);
     printf("%s\n", data);
     return 0;
 }
 
-int sshCallback(void *param)
+void process_path(char *path, int len)
 {
-    int i;
-    p_my_ssh_param ssh_param = (p_my_ssh_param)param;
-    p_server server = (p_server)ssh_param->param;
-
-    // ssh初始命令
-    for (i = 0; server->cmd[i].sleep != 0; i++)
+    for (int i = 0; i < len; i++)
     {
-        send_cmd(ssh_param, server->cmd[i].cmd, server->cmd[i].sleep, NULL, NULL);
-    }
-
-    ssh_param->param3 = (void*)SSHINITED;
-
-    while (ssh_param->run)
-    {
-        if ((time(NULL) - g_last_time) > 150)
+        if (path[i] == '\\')
         {
-            send_cmd(ssh_param, "", 100, NULL, NULL);
-        }
-
-        Sleep(100);
-    }
-
-    printf("ssh exit\n");
-    return 0;
-}
-
-void process_path(char *path)
-{
-    char *ptr = path;
-    while (*ptr != '\0')
-    {
-        if (*ptr == '\\')
-        {
-            *ptr = '/';
-        }
-
-        ptr++;
-    }
-}
-
-int process_event()
-{
-    p_server server;
-    p_monitor monitor;
-    p_event_head head;
-    p_my_ssh_param param;
-    char *ptr;
-    char temp[1024];
-    char local_filename[512];
-    char remote_filename[512];
-
-    while (true)
-    {
-        head = (p_event_head)list_with_lock_pop(&g_event_list);
-
-        if (NULL == head)
-        {
-            sleep(1);
-            continue;
-        }
-
-        monitor = &(g_conf.mnt[head->mnt_id]);
-        server = monitor->server;
-
-        if (NULL == server->ssh_param)
-        {
-            param = (p_my_ssh_param)malloc(sizeof(my_ssh_param));
-            param->run = FALSE;
-            param->type = SSH_TYPE_SSH; // SSH_TYPE_SSH,SSH_TYPE_SFTP
-            param->server_addr = server->addr;
-            param->server_port = server->port;
-            param->username = server->user;
-            param->password = server->pass;
-            param->data_cb = outputCallback;
-            param->worker_cb = sshCallback;
-            param->param = server;
-            server->ssh_param = param;
-
-            _beginthread(ssh_thread_func, 0, param);
-
-            while (param->param3 != (void*)SSHINITED)
-            {
-                Sleep(100);
-            }
-
-            zmodem_set(ssh_send_data, ssh_recv_data);
-        }
-
-        switch (head->cmd)
-        {
-        case CMD_CREATE:
-        {
-            if (head->type == TYPE_IS_DIR)
-            {
-                sprintf_s(temp, sizeof(temp) - 1, "mkdir %s%s", monitor->remotepath, head->filename);
-                process_path(temp);
-                send_cmd(server->ssh_param, temp, 100, NULL, NULL);
-            }
-            else
-            {
-                sprintf_s(temp, sizeof(temp) - 1, "> %s%s", monitor->remotepath, head->filename);
-                process_path(temp);
-                send_cmd(server->ssh_param, temp, 100, NULL, NULL);
-            }
-            break;
-        }
-        case CMD_DELETE: // 删除文件或目录
-        {
-            sprintf_s(temp, sizeof(temp) - 1, "rm -rf %s%s", monitor->remotepath, head->filename);
-            process_path(temp);
-            send_cmd(server->ssh_param, temp, 100, NULL, NULL);
-            break;
-        }
-        case CMD_RENAME: // 重命名文件或目录
-        {
-            ptr = strchr(head->filename, '|');
-            *ptr++ = '\0'; // 指向旧文件名
-            sprintf_s(temp, sizeof(temp) - 1, "mv -f %s%s %s%s", monitor->remotepath, ptr, monitor->remotepath, head->filename);
-            process_path(temp);
-            send_cmd(server->ssh_param, temp, 100, NULL, NULL);
-            break;
-        }
-        case CMD_MODIFY: // 删除文件或目录
-        {
-            sprintf_s(local_filename, sizeof(local_filename) - 1, "%s%s", monitor->localpath, head->filename);
-            sprintf_s(remote_filename, sizeof(remote_filename) - 1, "%s%s", monitor->remotepath, head->filename);
-            process_path(remote_filename);
-            send_cmd(server->ssh_param, "rz -y", 100, local_filename, remote_filename);
-            break;
-        }
-        default:
-        {
-            break;
-        }
+            path[i] = '/';
         }
     }
 }
@@ -350,18 +44,133 @@ int process_event()
 // monitor->queue->process->sshclient
 int main(int argc, char *argv[])
 {
-    if (init() != 0)
+    int ret = config_init("filesync.json", &g_cfg);
+
+    if (0 != ret)
     {
-        printf("%s init fail\n", __FUNCTION__);
+        printf("%s|init config fail\n", __FUNCTION__);
         return -1;
     }
 
-    if (start_monitor() != 0) // 可监控多个目录
+    g_cfg.log.root = 21;    // 根目录长度
+
+    ret = log_init(&(g_cfg.log));
+
+    if (0 != ret)
     {
-        ERR("startMonitor error");
+        printf("%s|init log fail\n", __FUNCTION__);
         return -2;
     }
 
-    process_event(); // 内部启动SSH客户端
+    D("init log ok");
+
+    ret = list_init(&g_monitor_event_list);
+
+    if (0 != ret)
+    {
+        printf("%s|init log fail\n", __FUNCTION__);
+        return -3;
+    }
+
+    D("init list ok");
+
+    ret = memory_pool_init(&g_memory_pool, 1024, 100);
+
+    if (0 != ret)
+    {
+        printf("%s|init memory pool fail\n", __FUNCTION__);
+        return -4;
+    }
+
+    D("init memory pool ok");
+
+    for (int i = 0; i < g_cfg.ssh_count; i++)   // 可连接多个服务器
+    {
+        ret = ssh_init(output, NULL, &(g_cfg.ssh[i]));
+
+        if (0 != ret)
+        {
+            return -5;
+        }
+    }
+
+    D("init ssh ok");
+
+    for (int i = 0; i < g_cfg.mnt_count; i++)   // 可监控多个目录
+    {
+        ret = monitor_init(&g_cfg.mnt[i], &g_monitor_event_list, &g_memory_pool);
+
+        if (0 != ret)
+        {
+            return -6;
+        }
+    }
+
+    D("init monitor ok");
+
+    int                len;
+    char               cmd[1024];
+    char               buf[10240];
+    char*              obj_name_old;
+    char               obj_name_local[MNT_OBJNAME_SIZE];
+    char               obj_name_remote[MNT_OBJNAME_SIZE];
+
+    p_xt_ssh           ssh;
+    p_xt_monitor       mnt;
+    p_xt_monitor_event event;
+
+    while (true)
+    {
+        if (0 != list_head_pop(&g_monitor_event_list, &event))
+        {
+            sleep(1);
+            continue;
+        }
+
+        mnt = &(g_cfg.mnt[event->monitor_id]);
+        ssh = &(g_cfg.ssh[mnt->ssh_id]);
+
+        D("type:%d name:%s cmd:%d monitor_id:%d ssh_id:%d", event->obj_type, event->obj_name, event->cmd, event->monitor_id, mnt->ssh_id);
+
+        switch (event->cmd)
+        {
+            case EVENT_CMD_CREATE:  // 新建文件或目录
+            {
+                len = SP(cmd, "%s %s%s", ((event->obj_type == EVENT_OBJECT_DIR) ? "mkdir" : ">"), mnt->remotepath, event->obj_name);
+                process_path(cmd, len);
+                len = sizeof(buf);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                break;
+            }
+            case EVENT_CMD_DELETE: // 删除文件或目录
+            {
+                len = SP(cmd, "rm -rf %s%s", mnt->remotepath, event->obj_name);
+                process_path(cmd, len);
+                len = sizeof(buf);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                break;
+            }
+            case EVENT_CMD_RENAME: // 重命名文件或目录
+            {
+                obj_name_old = strchr(event->obj_name, '|');
+                *obj_name_old++ = '\0'; // 指向旧文件名
+                len = SP(cmd, "mv -f %s%s %s%s", mnt->remotepath, obj_name_old, mnt->remotepath, event->obj_name);
+                process_path(cmd, len);
+                len = sizeof(buf);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                break;
+            }
+            case EVENT_CMD_MODIFY: // 删除文件或目录
+            {
+                SP(obj_name_local,  "%s%s", mnt->localpath,  event->obj_name);
+                len = SP(obj_name_remote, "%s%s", mnt->remotepath, event->obj_name);
+                process_path(obj_name_remote, len);
+                len = sizeof(buf);
+                ssh_send_cmd_rz(ssh, obj_name_local, obj_name_remote);
+                break;
+            }
+        }
+    }
+
     return 0;
 }

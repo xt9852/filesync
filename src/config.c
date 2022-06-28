@@ -1,22 +1,43 @@
-﻿
+﻿/**
+ *\copyright    XT Tech. Co., Ltd.
+ *\file         config.c
+ *\author       xt
+ *\version      1.0.0
+ *\date         2022.02.08
+ *\brief        配置模块实现,UTF-8(No BOM)
+ */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include "config.h"
-#include "cjson\cJSON.h"
+#include "cJSON.h"
+#include "xt_log.h"
 
-int get_file_size(const char *filename)
+/**
+ *\brief        得到文件大小
+ *\param[in]    filename    文件名
+ *\return       文件大小,小于0时失败
+ */
+int config_get_size(const char *filename)
 {
     struct _stat buf;
 
-    return (_stat(filename, &buf) == 0) ? buf.st_size : 0;
+    return (_stat(filename, &buf) == 0) ? buf.st_size : -1;
 }
 
-int get_config_data(const char *filename, char *buf, int len)
+/**
+ *\brief        加载配置文件数据
+ *\param[in]    filename    文件名
+ *\param[in]    buf         数据指针
+ *\param[in]    len         数据长度
+ *\return       0           成功
+ */
+int config_get_data(const char *filename, char *buf, int len)
 {
     if (NULL == filename || NULL == buf)
     {
-        ERR("filename or buf NULL");
+        printf("%s|filename, buf is null", __FUNCTION__);
         return -1;
     }
 
@@ -24,14 +45,14 @@ int get_config_data(const char *filename, char *buf, int len)
 
     if (0 != fopen_s(&fp, filename, "rb"))
     {
-        ERR("open %s fail", filename);
+        printf("%s|open %s fail", __FUNCTION__, filename);
         return -2;
     }
 
     if (len != fread(buf, 1, len, fp))
     {
+        printf("%s|read %s fail", __FUNCTION__, filename);
         fclose(fp);
-        ERR("read %s fail", filename);
         return -3;
     }
 
@@ -39,282 +60,429 @@ int get_config_data(const char *filename, char *buf, int len)
     return 0;
 }
 
-int parse_config_data(const char *data, p_config conf)
+/**
+ *\brief        得到JSON数据指针
+ *\param[in]    filename    文件名
+ *\param[out]   root        JSON数据指针
+ *\return       0           成功
+ */
+int config_get_json(const char *filename, cJSON **root)
 {
-    if (NULL == data || NULL == conf)
+    if (NULL == filename)
     {
-        printf("%s data or conf NULL\n", __FUNCTION__);
         return -1;
     }
 
-    cJSON *root = cJSON_Parse(data);
+    int size = config_get_size(filename);
 
-    if (NULL == root)
+    if (size <= 0)
     {
-        printf("%s parse json fail\n", __FUNCTION__);
+        printf("%s|get file %s size Eor\n", __FUNCTION__, filename);
         return -2;
     }
 
-    cJSON *log = cJSON_GetObjectItem(root, "log");
-    cJSON *server = cJSON_GetObjectItem(root, "server");
-    cJSON *monitor = cJSON_GetObjectItem(root, "monitor");
+    char *buff = (char*)malloc(size + 16);
 
-    if (NULL == log || NULL == server || NULL == monitor)
+    if (NULL == buff)
     {
-        cJSON_Delete(root);
-        printf("%s no log,server,monitor node\n", __FUNCTION__);
+        printf("%s|malloc %d fail\n", __FUNCTION__, size + 16);
         return -3;
     }
 
-    if (0 != xt_log_config(".\\", root, &(conf->log)))
-    {
-        cJSON_Delete(root);
-        printf("%s parse log node error\n", __FUNCTION__);
-        return -3;
-    }
+    int ret = config_get_data(filename, buff, size);
 
-    int server_max = sizeof(conf->srv) / sizeof(conf->srv[0]);
-    int monitor_max = sizeof(conf->mnt) / sizeof(conf->mnt[0]);
-    int server_count = cJSON_GetArraySize(server);
-    int monitor_count = cJSON_GetArraySize(monitor);
+    *root = (0 == ret) ? cJSON_Parse(buff) : NULL;
 
-    if (server_count > server_max)
+    free(buff);
+
+    if (NULL == *root)
     {
-        cJSON_Delete(root);
-        printf("%s server.item count > %d", __FUNCTION__, server_max);
+        printf("%s|parse json fail\n", __FUNCTION__);
         return -5;
     }
 
-    if (monitor_count > monitor_max)
+    return 0;
+}
+
+/**
+ *\brief        解析log节点数据
+ *\param[in]    root        JSON根节点
+ *\param[out]   config      配置数据
+ *\return       0           成功
+ */
+int config_log(cJSON *root, p_xt_log log)
+{
+    if (NULL == root || NULL == log)
     {
-        cJSON_Delete(root);
-        printf("%s monitor.item count > %d", __FUNCTION__, monitor_max);
+        return -1;
+    }
+
+    cJSON *item = cJSON_GetObjectItem(root, "log");
+
+    if (NULL == item)
+    {
+        printf("%s|config json no log node\n", __FUNCTION__);
+        return -2;
+    }
+
+    cJSON *name = cJSON_GetObjectItem(item, "name");
+
+    if (NULL == name)
+    {
+        printf("%s|config json no log.name node\n", __FUNCTION__);
+        return -3;
+    }
+
+    strncpy_s(log->filename, sizeof(log->filename), name->valuestring, sizeof(log->filename) - 1);
+
+    cJSON *level = cJSON_GetObjectItem(item, "level");
+
+    if (NULL == level)
+    {
+        printf("%s|config json no log.level node\n", __FUNCTION__);
+        return -4;
+    }
+
+    if (0 == strcmp(level->valuestring, "debug"))
+    {
+        log->level = LOG_LEVEL_DEBUG;
+    }
+    else if (0 == strcmp(level->valuestring, "info"))
+    {
+        log->level = LOG_LEVEL_INFO;
+    }
+    else if (0 == strcmp(level->valuestring, "warn"))
+    {
+        log->level = LOG_LEVEL_WARN;
+    }
+    else if (0 == strcmp(level->valuestring, "error"))
+    {
+        log->level = LOG_LEVEL_ERROR;
+    }
+    else
+    {
+        printf("%s|config json no log.level value error\n", __FUNCTION__);
+        return -5;
+    }
+
+    cJSON *cycle = cJSON_GetObjectItem(item, "cycle");
+
+    if (NULL == cycle)
+    {
+        printf("%s|config json no log.cycle node\n", __FUNCTION__);
         return -6;
     }
 
-    int i;
-    int j;
-    int len;
-    int cmd_count;
-    int whitelist_count;
-    int blacklist_count;
-    int cmd_count_max = sizeof(conf->srv[0].cmd) / sizeof(conf->srv[0].cmd[0]);
-    int whitelist_count_max = sizeof(conf->mnt[0].whitelist) / sizeof(conf->mnt[0].whitelist[0]);
-    int blacklist_count_max = sizeof(conf->mnt[0].blacklist) / sizeof(conf->mnt[0].blacklist[0]);
-    cJSON *cmd;
-    cJSON *item;
+    if (0 == strcmp(cycle->valuestring, "minute"))
+    {
+        log->cycle = LOG_CYCLE_MINUTE;
+    }
+    else if (0 == strcmp(cycle->valuestring, "hour"))
+    {
+        log->cycle = LOG_CYCLE_HOUR;
+    }
+    else if (0 == strcmp(cycle->valuestring, "day"))
+    {
+        log->cycle = LOG_CYCLE_DAY;
+    }
+    else if (0 == strcmp(cycle->valuestring, "week"))
+    {
+        log->cycle = LOG_CYCLE_WEEK;
+    }
+    else
+    {
+        printf("%s|config no log.cycle value Eor\n", __FUNCTION__);
+        return -7;
+    }
+
+    cJSON *backup = cJSON_GetObjectItem(item, "backup");
+
+    if (NULL == backup)
+    {
+        printf("%s|config no log.backup value Eor\n", __FUNCTION__);
+        return -8;
+    }
+
+    log->backup = backup->valueint;
+
+    cJSON *clean = cJSON_GetObjectItem(item, "clean");   // 可以为空
+
+    log->clean = (NULL != clean) ? clean->valueint : false;
+
+    return 0;
+}
+
+/**
+ *\brief        解析ssh节点数据
+ *\param[in]    root        JSON根节点
+ *\param[out]   config      配置数据
+ *\return                   ssh数量
+ */
+int config_ssh(cJSON *root, p_xt_ssh ssh)
+{
+    if (NULL == root || NULL == ssh)
+    {
+        return -1;
+    }
+
+    cJSON *item = cJSON_GetObjectItem(root, "ssh");
+
+    if (NULL == item)
+    {
+        printf("%s|config json no ssh node\n", __FUNCTION__);
+        return -2;
+    }
+
+    int ssh_count = cJSON_GetArraySize(item);
+
+    if (ssh_count > SSH_SIZE)
+    {
+        printf("%s item.item count:%d > %d", __FUNCTION__, ssh_count, SSH_SIZE);
+        return -3;
+    }
+
+    cJSON *ssh_item;
     cJSON *addr;
     cJSON *port;
     cJSON *user;
     cJSON *pass;
+    cJSON *cmd;
+    cJSON *cmd_item;
+    cJSON *cmd_item_cmd;
+    cJSON *cmd_item_sleep;
+
+    for (int i = 0; i < ssh_count; i++)
+    {
+        ssh_item = cJSON_GetArrayItem(item, i);
+
+        if (NULL == ssh_item)
+        {
+            printf("%s no server[%d] node", __FUNCTION__, i);
+            return -4;
+        }
+
+        addr = cJSON_GetObjectItem(ssh_item, "addr");
+        port = cJSON_GetObjectItem(ssh_item, "port");
+        user = cJSON_GetObjectItem(ssh_item, "user");
+        pass = cJSON_GetObjectItem(ssh_item, "pass");
+        cmd  = cJSON_GetObjectItem(ssh_item, "cmd");
+
+        if (NULL == addr || NULL == port || NULL == user || NULL == pass || NULL == cmd)
+        {
+            printf("%s no ssh[%d].addr,port,user,pass,type node", __FUNCTION__, i);
+            return -5;
+        }
+
+        ssh[i].port = port->valueint;
+        strncpy_s(ssh[i].addr,     ADDR_SIZE,     addr->valuestring, ADDR_SIZE - 1);
+        strncpy_s(ssh[i].username, USERNAME_SIZE, user->valuestring, USERNAME_SIZE - 1);
+        strncpy_s(ssh[i].password, PASSWORD_SIZE, pass->valuestring, PASSWORD_SIZE - 1);
+
+        ssh[i].cmd_count = cJSON_GetArraySize(cmd);
+
+        if (ssh[i].cmd_count > CMD_SIZE)
+        {
+            printf("%s no ssh[%d].cmd count:%d > %d", __FUNCTION__, i, ssh[i].cmd_count, CMD_SIZE);
+            return -6;
+        }
+
+        for (int j = 0; j < ssh[i].cmd_count; j++)
+        {
+            cmd_item = cJSON_GetArrayItem(cmd, j);
+
+            if (NULL == cmd_item)
+            {
+                printf("%s no ssh[%d].cmd[%d] node", __FUNCTION__, i, j);
+                return -7;
+            }
+
+            cmd_item_cmd = cJSON_GetObjectItem(cmd_item, "cmd");
+            cmd_item_sleep = cJSON_GetObjectItem(cmd_item, "sleep");
+
+            ssh[i].cmd[j].sleep = cmd_item_sleep->valueint;
+            strncpy_s(ssh[i].cmd[j].str, CMD_STR_SIZE, cmd_item_cmd->valuestring, CMD_STR_SIZE - 1);
+        }
+    }
+
+    return ssh_count;
+}
+
+/**
+ *\brief        解析monitor节点数据
+ *\param[in]    root        JSON根节点
+ *\param[out]   config      配置数据
+ *\return                   monitor数量
+ */
+int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
+{
+    if (NULL == root || NULL == monitor)
+    {
+        return -1;
+    }
+
+    cJSON *item = cJSON_GetObjectItem(root, "monitor");
+
+    if (NULL == item)
+    {
+        printf("%s|config json no monitor node\n", __FUNCTION__);
+        return -2;
+    }
+
+    int monitor_count = cJSON_GetArraySize(item);
+
+    if (monitor_count > MNT_SIZE)
+    {
+        printf("%s monitor.item count:%d > %d", __FUNCTION__, monitor_count, MNT_SIZE);
+        return -3;
+    }
+
+    int len;
+    int whitelist_count;
+    int blacklist_count;
+    cJSON *monitor_item;
+    cJSON *ssh;
     cJSON *localpath;
     cJSON *remotpath;
     cJSON *whitelist;
     cJSON *blacklist;
-    cJSON *cmd_item;
-    cJSON *cmd_item_cmd;
-    cJSON *cmd_item_sleep;
-    p_server srv;
-    p_monitor mnt;
+    cJSON *white_item;
+    cJSON *black_item;
 
-    for (i = 0; i < server_count; i++)
+    for (int i = 0; i < monitor_count; i++)
     {
-        item = cJSON_GetArrayItem(server, i);
-        addr = cJSON_GetObjectItem(item, "server");
-        port = cJSON_GetObjectItem(item, "port");
-        user = cJSON_GetObjectItem(item, "user");
-        pass = cJSON_GetObjectItem(item, "pass");
-        cmd = cJSON_GetObjectItem(item, "cmd");
+        monitor_item = cJSON_GetArrayItem(item, i);
 
-        if (NULL == addr || NULL == port || NULL == user || NULL == pass)
+        if (NULL == monitor_item)
         {
-            cJSON_Delete(root);
-            printf("%s no server.item[%d].addr,port,user,pass,type node", __FUNCTION__, i);
-            return -7;
+            printf("%s no monitor[%d] node", __FUNCTION__, i);
+            return -4;
         }
 
-        srv = &(conf->srv[i]);
-        srv->port = port->valueint;
-        strcpy_s(srv->addr, sizeof(srv->addr)-1, addr->valuestring);
-        strcpy_s(srv->user, sizeof(srv->user)-1, user->valuestring);
-        strcpy_s(srv->pass, sizeof(srv->pass)-1, pass->valuestring);
+        ssh       = cJSON_GetObjectItem(monitor_item, "ssh");
+        localpath = cJSON_GetObjectItem(monitor_item, "localpath");
+        remotpath = cJSON_GetObjectItem(monitor_item, "remotepath");
+        whitelist = cJSON_GetObjectItem(monitor_item, "whitelist");
+        blacklist = cJSON_GetObjectItem(monitor_item, "blacklist");
 
-        cmd_count = cJSON_GetArraySize(cmd);
-
-        if (cmd_count > cmd_count_max)
+        if (NULL == ssh || NULL == localpath || NULL == remotpath || NULL == whitelist || NULL == blacklist)
         {
-            cJSON_Delete(root);
-            ERR("%s no server.item[%d].cmd count > %d", __FUNCTION__, cmd_count_max);
-            return -8;
+            printf("%s no monitor[%d].ssh,localpath,remotepath,whitelist,blacklist node", __FUNCTION__, i);
+            return -5;
         }
 
-        for (j = 0; j < cmd_count; j++)
+        strncpy_s(monitor[i].localpath,  LOCALPATH_SIZE,  localpath->valuestring, LOCALPATH_SIZE - 1);
+        strncpy_s(monitor[i].remotepath, REMOTEPATH_SIZE, remotpath->valuestring, REMOTEPATH_SIZE - 1);
+
+        len = (int)strlen(localpath->valuestring);
+
+        if (monitor[i].localpath[len - 1] != '\\') // 当不是\结尾时添加
         {
-            cmd_item = cJSON_GetArrayItem(cmd, j);
-            cmd_item_cmd = cJSON_GetObjectItem(cmd_item, "cmd");
-            cmd_item_sleep = cJSON_GetObjectItem(cmd_item, "sleep");
-
-            srv->cmd[j].sleep = cmd_item_sleep->valueint;
-            strcpy_s(srv->cmd[j].cmd, sizeof(srv->cmd[j].cmd)-1, cmd_item_cmd->valuestring);
-        }
-    }
-
-    for (i = 0; i < monitor_count; i++)
-    {
-        item = cJSON_GetArrayItem(monitor, i);
-        addr = cJSON_GetObjectItem(item, "server");
-        localpath = cJSON_GetObjectItem(item, "localpath");
-        remotpath = cJSON_GetObjectItem(item, "remotepath");
-        whitelist = cJSON_GetObjectItem(item, "whitelist");
-        blacklist = cJSON_GetObjectItem(item, "blacklist");
-
-        if (NULL == addr || NULL == localpath || NULL == remotpath || NULL == whitelist || NULL == blacklist)
-        {
-            cJSON_Delete(root);
-            printf("%s no server.item[%d].server,localpath,remotepath,whitelist,blacklist node", __FUNCTION__, i);
-            return -9;
+            monitor[i].localpath[len] = '\\';
+            monitor[i].localpath[len + 1] = '\0';
         }
 
-        mnt = &(conf->mnt[i]);
-        strcpy_s(mnt->localpath, sizeof(mnt->localpath)-1, localpath->valuestring);
-        strcpy_s(mnt->remotepath, sizeof(mnt->remotepath)-1, remotpath->valuestring);
+        len = (int)strlen(remotpath->valuestring);
 
-        len = (int)strlen(mnt->localpath);
-
-        if (mnt->localpath[len - 1] != '\\') // 当不是\结尾时添加
+        if (monitor[i].remotepath[len - 1] != '/') // 当不是/结尾时添加
         {
-            mnt->localpath[len] = '\\';
-            mnt->localpath[len + 1] = '\0';
+            monitor[i].remotepath[len] = '/';
+            monitor[i].remotepath[len + 1] = '\0';
         }
 
-        len = (int)strlen(mnt->remotepath);
-
-        if (mnt->remotepath[len - 1] != '/') // 当不是/结尾时添加
+        if (ssh->valueint < 0 || ssh->valueint >= ssh_count)
         {
-            mnt->remotepath[len] = '/';
-            mnt->remotepath[len + 1] = '\0';
+            printf("%s monitor[%d].ssh error", __FUNCTION__, i);
+            return -6;
         }
 
-        // 查找server
-        for (j = 0; conf->srv[j].addr[0] != 0 && j < server_count; j++)
-        {
-            if (0 == strcmp(addr->valuestring, conf->srv[j].addr))
-            {
-                mnt->server = &(conf->srv[j]);
-                break;
-            }
-        }
-
-        if (NULL == mnt->server)
-        {
-            cJSON_Delete(root);
-            printf("%s no server.item[%d].server error", __FUNCTION__, i);
-            return -10;
-        }
+        monitor[i].ssh_id = ssh->valueint;
 
         whitelist_count = cJSON_GetArraySize(whitelist);
         blacklist_count = cJSON_GetArraySize(blacklist);
 
-        if (whitelist_count > whitelist_count_max)
+        if (whitelist_count > WHITELIST_SIZE)
         {
-            cJSON_Delete(root);
-            printf("%s no monitor.item[%d].whitelist count > %d", __FUNCTION__, i, whitelist_count_max);
-            return -11;
+            printf("%s no monitor[%d].whitelist count:%d > %d", __FUNCTION__, i, whitelist_count, WHITELIST_SIZE);
+            return -7;
         }
 
-        if (blacklist_count > blacklist_count_max)
+        if (blacklist_count > BLACKLIST_SIZE)
         {
-            cJSON_Delete(root);
-            ERR("%s no monitor.item[%d].blacklist count > %d", __FUNCTION__, i, blacklist_count_max);
-            return -12;
+            printf("%s no monitor[%d].blacklist count:%d > %d", __FUNCTION__, i, blacklist_count, BLACKLIST_SIZE);
+            return -8;
         }
 
-        for (j = 0; j < whitelist_count; j++)
+        for (int j = 0; j < whitelist_count; j++)
         {
-            item = cJSON_GetArrayItem(whitelist, j);
-            strcpy_s(mnt->whitelist[j], sizeof(mnt->whitelist[j])-1, item->valuestring);
+            white_item = cJSON_GetArrayItem(whitelist, j);
+            strncpy_s(monitor[i].whitelist[j], WHITELIST_STR_SIZE, white_item->valuestring, WHITELIST_STR_SIZE - 1);
         }
 
-        for (j = 0; j < blacklist_count; j++)
+        for (int j = 0; j < blacklist_count; j++)
         {
-            item = cJSON_GetArrayItem(blacklist, j);
-            strcpy_s(mnt->blacklist[j], sizeof(mnt->blacklist[j])-1, item->valuestring);
+            black_item = cJSON_GetArrayItem(blacklist, j);
+            strncpy_s(monitor[i].blacklist[j], BLACKLIST_STR_SIZE, black_item->valuestring, BLACKLIST_STR_SIZE - 1);
         }
+
+        monitor[i].whitelist_count = whitelist_count;
+        monitor[i].blacklist_count = blacklist_count;
     }
 
-    cJSON_Delete(root);
-    return 0;
+    return monitor_count;
 }
 
-int load_config(p_config conf)
+/**
+ *\brief        初始化配置
+ *\param[in]    filename    配置文件名
+ *\param[out]   cfg         配置数据
+ *\return       0           成功
+ */
+int config_init(const char *filename, p_config cfg)
 {
-    if (NULL == conf)
+    if (NULL == filename || NULL == cfg)
     {
         printf("%s param null\n", __FUNCTION__);
         return -1;
     }
 
-    char filename[512] = "";
-    GetModuleFileName(NULL, filename, sizeof(filename)-1);
+    cJSON *root;
 
-    char *ptr = strrchr(filename, '\\');
-    strcpy_s(ptr + 1, sizeof(filename) - (ptr - filename) - 1, "conf.json");
+    int ret = config_get_json(filename, &root);
 
-    int size = get_file_size(filename);
-
-    if (size <= 0)
+    if (0 != ret)
     {
-        printf("%s filename:%s size:0\n", __FUNCTION__, filename);
+        printf("%s|get config %s data fail:%d\n", __FUNCTION__, filename, ret);
         return -2;
     }
 
-    char *buf = (char*)malloc(size + 1);
+    ret = config_log(root, &(cfg->log));
 
-    if (0 != get_config_data(filename, buf, size))
+    if (0 != ret)
     {
+        printf("%s|config json log node error:%d\n", __FUNCTION__, ret);
         return -3;
     }
 
-    if (0 != parse_config_data(buf, conf))
+    ret = config_ssh(root, cfg->ssh);
+
+    if (ret <= 0)
     {
-        free(buf);
-        return -4;
+        printf("%s|config json ssh node error:%d\n", __FUNCTION__, ret);
+        return -3;
     }
 
-    free(buf);
+    cfg->ssh_count = ret;
 
-    //--------------------------------------------------------------------
+    ret = config_monitor(root, cfg->mnt, cfg->ssh_count);
 
-    int i;
-    int j;
-
-    for (i = 0; conf->srv[i].addr[0] != '\0'; i++)
+    if (ret <= 0)
     {
-        p_server srv = &(conf->srv[i]);
-        printf("srv %s %d %s %s\n", srv->addr, srv->port, srv->user, srv->pass);
-
-        for (j = 0; srv->cmd[j].sleep != 0; j++)
-        {
-            p_command cmd = &(srv->cmd[j]);
-            printf("    cmd %s %d\n", cmd->cmd, cmd->sleep);
-        }
+        printf("%s|config json monitor node error:%d\n", __FUNCTION__, ret);
+        return -3;
     }
 
-    for (i = 0; conf->mnt[i].localpath[0] != '\0'; i++)
-    {
-        p_monitor mnt = &(conf->mnt[i]);
-        printf("mnt %s %s\n", mnt->localpath, mnt->remotepath);
+    cfg->mnt_count = ret;
 
-        for (j = 0; mnt->whitelist[j][0] != '\0'; j++)
-        {
-            printf("    whitelist %s\n", mnt->whitelist[j]);
-        }
-
-        for (j = 0; mnt->blacklist[j][0] != '\0'; j++)
-        {
-            printf("    blacklist %s\n", mnt->blacklist[j]);
-        }
-    }
-
+    printf("%s|ok\n", __FUNCTION__);
     return 0;
 }
