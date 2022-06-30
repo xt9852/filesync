@@ -14,8 +14,11 @@
 #include "xt_memory_pool.h"
 #include "xt_monitor.h"
 #include "xt_ssh2.h"
+#include "xt_notify.h"
 #include "config.h"
+#include "resource.h"
 
+#define TITLE       "filesync"
 
 config              g_cfg                   = {0};  ///< 配置信息
 
@@ -23,6 +26,13 @@ xt_list             g_monitor_event_list    = {0};  ///< 监控事件队列
 
 xt_memory_pool      g_memory_pool           = {0};  ///< 内存池
 
+/**
+ *\brief        SSH输出回调
+ *\param[in]    param           用户自定义参数
+ *\param[in]    data            数据
+ *\param[in]    len             数据长度
+ *\return       0               成功
+ */
 int output(void *param, const char *data, unsigned int len)
 {
     D(data);
@@ -30,7 +40,13 @@ int output(void *param, const char *data, unsigned int len)
     return 0;
 }
 
-void process_path(char *path, int len)
+/**
+ *\brief        将windows路径转成linux路径
+ *\param[in]    path            路径
+ *\param[in]    len             路径长度
+ *\return                       无
+ */
+void path_to_linux(char *path, int len)
 {
     for (int i = 0; i < len; i++)
     {
@@ -41,10 +57,105 @@ void process_path(char *path, int len)
     }
 }
 
-// monitor->queue->process->sshclient
-int main(int argc, char *argv[])
+/**
+ *\brief        窗体关闭处理函数
+ *\param[in]    wnd             窗体句柄
+ *\param[in]    param           自定义参数
+ *\return                       无
+ */
+void on_menu_exit(HWND wnd, void *param)
 {
-    int ret = config_init("filesync.json", &g_cfg);
+    if (IDNO == MessageBoxW(wnd, L"确定退出?", L"消息", MB_ICONQUESTION | MB_YESNO))
+    {
+        return;
+    }
+
+    DestroyWindow(wnd);
+}
+
+void* process_monitor_event_thread(void *param)
+{
+    D("begin");
+
+    int                len;
+    char               cmd[1024];
+    char               buf[10240];
+    char*              obj_name_old;
+    char               obj_name_local[MNT_OBJNAME_SIZE];
+    char               obj_name_remote[MNT_OBJNAME_SIZE];
+
+    p_xt_ssh           ssh;
+    p_xt_monitor       mnt;
+    p_xt_monitor_event event;
+
+    while (true)
+    {
+        if (0 != list_head_pop(&g_monitor_event_list, &event))
+        {
+            sleep(1);
+            continue;
+        }
+
+        mnt = &(g_cfg.mnt[event->monitor_id]);
+        ssh = &(g_cfg.ssh[mnt->ssh_id]);
+
+        D("type:%d name:%s cmd:%d monitor_id:%d ssh_id:%d", event->obj_type, event->obj_name, event->cmd, event->monitor_id, mnt->ssh_id);
+
+        switch (event->cmd)
+        {
+            case EVENT_CMD_CREATE:  // 新建文件或目录
+            {
+                len = SP(cmd, "%s %s%s", ((event->obj_type == EVENT_OBJECT_DIR) ? "mkdir" : ">"), mnt->remotepath, event->obj_name);
+                path_to_linux(cmd, len);
+                len = sizeof(buf);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                break;
+            }
+            case EVENT_CMD_DELETE: // 删除文件或目录
+            {
+                len = SP(cmd, "rm -rf %s%s", mnt->remotepath, event->obj_name);
+                path_to_linux(cmd, len);
+                len = sizeof(buf);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                break;
+            }
+            case EVENT_CMD_RENAME: // 重命名文件或目录
+            {
+                obj_name_old = strchr(event->obj_name, '|');
+                *obj_name_old++ = '\0'; // 指向旧文件名
+                len = SP(cmd, "mv -f %s%s %s%s", mnt->remotepath, obj_name_old, mnt->remotepath, event->obj_name);
+                path_to_linux(cmd, len);
+                len = sizeof(buf);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                break;
+            }
+            case EVENT_CMD_MODIFY: // 删除文件或目录
+            {
+                SP(obj_name_local,  "%s%s", mnt->localpath,  event->obj_name);
+                len = SP(obj_name_remote, "%s%s", mnt->remotepath, event->obj_name);
+                path_to_linux(obj_name_remote, len);
+                len = sizeof(buf);
+                ssh_send_cmd_rz(ssh, obj_name_local, obj_name_remote);
+                break;
+            }
+        }
+    }
+
+    D("exit");
+    return NULL;
+}
+
+/**
+ *\brief        窗体类程序主函数
+ *\param[in]    hInstance       当前实例句柄
+ *\param[in]    hPrevInstance   先前实例句柄
+ *\param[in]    lpCmdLine       命令行参数
+ *\param[in]    nCmdShow        显示状态(最小化,最大化,隐藏)
+ *\return                       exe程序返回值
+ */
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+    int ret = config_init(TITLE".json", &g_cfg);
 
     if (0 != ret)
     {
@@ -108,69 +219,28 @@ int main(int argc, char *argv[])
 
     D("init monitor ok");
 
-    int                len;
-    char               cmd[1024];
-    char               buf[10240];
-    char*              obj_name_old;
-    char               obj_name_local[MNT_OBJNAME_SIZE];
-    char               obj_name_remote[MNT_OBJNAME_SIZE];
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);    // 退出时自行释放所占用的资源
 
-    p_xt_ssh           ssh;
-    p_xt_monitor       mnt;
-    p_xt_monitor_event event;
+    ret = pthread_create(&tid, &attr, process_monitor_event_thread, NULL);
 
-    while (true)
+    if (ret != 0)
     {
-        if (0 != list_head_pop(&g_monitor_event_list, &event))
-        {
-            sleep(1);
-            continue;
-        }
-
-        mnt = &(g_cfg.mnt[event->monitor_id]);
-        ssh = &(g_cfg.ssh[mnt->ssh_id]);
-
-        D("type:%d name:%s cmd:%d monitor_id:%d ssh_id:%d", event->obj_type, event->obj_name, event->cmd, event->monitor_id, mnt->ssh_id);
-
-        switch (event->cmd)
-        {
-            case EVENT_CMD_CREATE:  // 新建文件或目录
-            {
-                len = SP(cmd, "%s %s%s", ((event->obj_type == EVENT_OBJECT_DIR) ? "mkdir" : ">"), mnt->remotepath, event->obj_name);
-                process_path(cmd, len);
-                len = sizeof(buf);
-                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
-                break;
-            }
-            case EVENT_CMD_DELETE: // 删除文件或目录
-            {
-                len = SP(cmd, "rm -rf %s%s", mnt->remotepath, event->obj_name);
-                process_path(cmd, len);
-                len = sizeof(buf);
-                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
-                break;
-            }
-            case EVENT_CMD_RENAME: // 重命名文件或目录
-            {
-                obj_name_old = strchr(event->obj_name, '|');
-                *obj_name_old++ = '\0'; // 指向旧文件名
-                len = SP(cmd, "mv -f %s%s %s%s", mnt->remotepath, obj_name_old, mnt->remotepath, event->obj_name);
-                process_path(cmd, len);
-                len = sizeof(buf);
-                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
-                break;
-            }
-            case EVENT_CMD_MODIFY: // 删除文件或目录
-            {
-                SP(obj_name_local,  "%s%s", mnt->localpath,  event->obj_name);
-                len = SP(obj_name_remote, "%s%s", mnt->remotepath, event->obj_name);
-                process_path(obj_name_remote, len);
-                len = sizeof(buf);
-                ssh_send_cmd_rz(ssh, obj_name_local, obj_name_remote);
-                break;
-            }
-        }
+        E("create thread fail, error:%d", ret);
+        return -7;
     }
 
-    return 0;
+    notify_menu_info menu[] = { {0, L"退出(&E)", NULL, on_menu_exit} };
+
+    ret = notify_init(hInstance, IDI_GREEN, TITLE, SIZEOF(menu), menu);
+
+    if (0 != ret)
+    {
+        printf("%s|init notify fail\n", __FUNCTION__);
+        return -8;
+    }
+
+    return notify_loop_msg();
 }

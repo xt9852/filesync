@@ -77,7 +77,7 @@ int config_get_json(const char *filename, cJSON **root)
 
     if (size <= 0)
     {
-        printf("%s|get file %s size Eor\n", __FUNCTION__, filename);
+        printf("%s|get file %s size error\n", __FUNCTION__, filename);
         return -2;
     }
 
@@ -191,7 +191,7 @@ int config_log(cJSON *root, p_xt_log log)
     }
     else
     {
-        printf("%s|config no log.cycle value Eor\n", __FUNCTION__);
+        printf("%s|config no log.cycle value error\n", __FUNCTION__);
         return -7;
     }
 
@@ -199,7 +199,7 @@ int config_log(cJSON *root, p_xt_log log)
 
     if (NULL == backup)
     {
-        printf("%s|config no log.backup value Eor\n", __FUNCTION__);
+        printf("%s|config no log.backup value error\n", __FUNCTION__);
         return -8;
     }
 
