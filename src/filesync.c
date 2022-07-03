@@ -35,8 +35,6 @@ xt_memory_pool      g_memory_pool           = {0};  ///< 内存池
  */
 int output(void *param, const char *data, unsigned int len)
 {
-    D(data);
-    printf("%s\n", data);
     return 0;
 }
 
@@ -73,6 +71,11 @@ void on_menu_exit(HWND wnd, void *param)
     DestroyWindow(wnd);
 }
 
+/**
+ *\brief        监控事件处理线程
+ *\param[in]    param           无
+ *\return                       空
+ */
 void* process_monitor_event_thread(void *param)
 {
     D("begin");
@@ -80,13 +83,16 @@ void* process_monitor_event_thread(void *param)
     int                len;
     char               cmd[1024];
     char               buf[10240];
-    char*              obj_name_old;
     char               obj_name_local[MNT_OBJNAME_SIZE];
     char               obj_name_remote[MNT_OBJNAME_SIZE];
 
     p_xt_ssh           ssh;
     p_xt_monitor       mnt;
     p_xt_monitor_event event;
+
+    sleep(10);
+
+    ssh_send_cmd_sz(&(g_cfg.ssh[0]), "/root/esp/ESP8266_RTOS_SDK/examples/esp8266-test/123.txt", "D:\\5.downloads\\bt\\123.txt");
 
     while (true)
     {
@@ -107,26 +113,21 @@ void* process_monitor_event_thread(void *param)
             {
                 len = SP(cmd, "%s %s%s", ((event->obj_type == EVENT_OBJECT_DIR) ? "mkdir" : ">"), mnt->remotepath, event->obj_name);
                 path_to_linux(cmd, len);
-                len = sizeof(buf);
-                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, sizeof(buf));
                 break;
             }
             case EVENT_CMD_DELETE: // 删除文件或目录
             {
                 len = SP(cmd, "rm -rf %s%s", mnt->remotepath, event->obj_name);
                 path_to_linux(cmd, len);
-                len = sizeof(buf);
-                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, sizeof(buf));
                 break;
             }
             case EVENT_CMD_RENAME: // 重命名文件或目录
             {
-                obj_name_old = strchr(event->obj_name, '|');
-                *obj_name_old++ = '\0'; // 指向旧文件名
-                len = SP(cmd, "mv -f %s%s %s%s", mnt->remotepath, obj_name_old, mnt->remotepath, event->obj_name);
+                len = SP(cmd, "mv -f %s%s %s%s", mnt->remotepath, event->obj_oldname, mnt->remotepath, event->obj_name);
                 path_to_linux(cmd, len);
-                len = sizeof(buf);
-                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, &len);
+                ssh_send_cmd(ssh, cmd, strlen(cmd), buf, sizeof(buf));
                 break;
             }
             case EVENT_CMD_MODIFY: // 删除文件或目录
@@ -134,7 +135,6 @@ void* process_monitor_event_thread(void *param)
                 SP(obj_name_local,  "%s%s", mnt->localpath,  event->obj_name);
                 len = SP(obj_name_remote, "%s%s", mnt->remotepath, event->obj_name);
                 path_to_linux(obj_name_remote, len);
-                len = sizeof(buf);
                 ssh_send_cmd_rz(ssh, obj_name_local, obj_name_remote);
                 break;
             }
