@@ -5,7 +5,8 @@
         "level": "debug",
         "cycle": "day",
         "backup": 7,
-        "clean": true
+        "clean_log": true,
+        "clean_file": true
     },
     "ssh":
     [
