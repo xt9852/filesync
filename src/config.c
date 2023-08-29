@@ -205,9 +205,13 @@ int config_log(cJSON *root, p_xt_log log)
 
     log->backup = backup->valueint;
 
-    cJSON *clean = cJSON_GetObjectItem(item, "clean");   // 可以为空
+    cJSON *clean_log = cJSON_GetObjectItem(item, "clean_log");      // 可以为空
 
-    log->clean = (NULL != clean) ? clean->valueint : false;
+    log->clean_log = (NULL != clean_log) ? clean_log->valueint : false;
+
+    cJSON *clean_file = cJSON_GetObjectItem(item, "clean_file");    // 可以为空
+
+    log->clean_file = (NULL != clean_file) ? clean_file->valueint : false;
 
     return 0;
 }
