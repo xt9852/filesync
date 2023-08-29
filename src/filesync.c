@@ -18,8 +18,6 @@
 #include "config.h"
 #include "resource.h"
 
-#define TITLE       "filesync"
-
 config              g_cfg                   = {0};  ///< 配置信息
 
 xt_list             g_monitor_event_list    = {0};  ///< 监控事件队列
@@ -155,7 +153,19 @@ void* process_monitor_event_thread(void *param)
  */
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-    int ret = config_init(TITLE".json", &g_cfg);
+    GetModuleFileNameA(hInstance, g_cfg.log.path, MAX_PATH);
+
+    char *title = strrchr(g_cfg.log.path, '\\');
+    *title++ = '\0';
+
+    char *end = strrchr(title, '.');
+    *end = '\0';
+
+    char filename[MAX_PATH];
+
+    snprintf(filename, MAX_PATH, "%s.json", title);
+
+    int ret = config_init(filename, &g_cfg);
 
     if (0 != ret)
     {
@@ -234,7 +244,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     notify_menu_info menu[] = { {0, L"退出(&E)", NULL, on_menu_exit} };
 
-    ret = notify_init(hInstance, IDI_GREEN, TITLE, SIZEOF(menu), menu);
+    ret = notify_init(hInstance, IDI_GREEN, "filesync", SIZEOF(menu), menu);
 
     if (0 != ret)
     {
