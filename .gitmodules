@@ -1,0 +1,6 @@
+[submodule "3th"]
+	path = 3th
+	url = https://github.com/xt9852/3th.git
+[submodule "utitly"]
+	path = utitly
+	url = https://github.com/xt9852/utitly.git

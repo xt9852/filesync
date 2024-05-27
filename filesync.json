@@ -1,0 +1,35 @@
+{
+    "log":
+    {
+        "name": "filesync",
+        "level": "debug",
+        "cycle": "day",
+        "backup": 7,
+        "clean_log": true,
+        "clean_file": true
+    },
+    "ssh":
+    [
+        {
+            "addr":"192.168.1.34",
+            "port":22,
+            "user":"root",
+            "pass":"!@#",
+            "cmd":
+            [
+                { "cmd":"pwd", "sleep":1000 },
+                { "cmd":"ll", "sleep":1000 }
+            ]
+        }
+    ],
+    "monitor":
+    [
+        {
+            "ssh":0,
+            "localpath":"D:\\2.code\\2.esp\\esp8266-test\\code",
+            "remotepath":"/root/esp/esp8266-test/code",
+            "whitelist":[".*"],
+            "blacklist":[]
+        }
+    ]
+}
