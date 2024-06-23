@@ -1,10 +1,12 @@
 ﻿/**
- *\copyright    XT Tech. Co., Ltd.
- *\file         config.c
- *\author       xt
- *\version      1.0.0
- *\date         2022.02.08
- *\brief        配置模块实现,UTF-8(No BOM)
+ *\file     config.c
+ *\author   xt
+ *\version  1.0.0
+ *\brief    配置模块实现
+ *          时间|事件
+ *          -|-
+ *          2022.02.08|创建文件
+ *          2024.06.23|添加Doxygen注释
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,9 +17,9 @@
 #include "xt_log.h"
 
 /**
- *\brief        得到文件大小
+ *\brief                    得到文件大小
  *\param[in]    filename    文件名
- *\return       文件大小,小于0时失败
+ *\return                   文件大小, 小于0时失败
  */
 int config_get_size(const char *filename)
 {
@@ -27,7 +29,7 @@ int config_get_size(const char *filename)
 }
 
 /**
- *\brief        加载配置文件数据
+ *\brief                    加载配置文件数据
  *\param[in]    filename    文件名
  *\param[in]    buf         数据指针
  *\param[in]    len         数据长度
@@ -61,7 +63,7 @@ int config_get_data(const char *filename, char *buf, int len)
 }
 
 /**
- *\brief        得到JSON数据指针
+ *\brief                    得到JSON数据指针
  *\param[in]    filename    文件名
  *\param[out]   root        JSON数据指针
  *\return       0           成功
@@ -105,9 +107,9 @@ int config_get_json(const char *filename, cJSON **root)
 }
 
 /**
- *\brief        解析log节点数据
+ *\brief                    解析log节点数据
  *\param[in]    root        JSON根节点
- *\param[out]   config      配置数据
+ *\param[out]   log         配置数据
  *\return       0           成功
  */
 int config_log(cJSON *root, p_xt_log log)
@@ -217,9 +219,9 @@ int config_log(cJSON *root, p_xt_log log)
 }
 
 /**
- *\brief        解析ssh节点数据
+ *\brief                    解析ssh节点数据
  *\param[in]    root        JSON根节点
- *\param[out]   config      配置数据
+ *\param[out]   ssh         配置数据
  *\return                   ssh数量
  */
 int config_ssh(cJSON *root, p_xt_ssh ssh)
@@ -312,9 +314,10 @@ int config_ssh(cJSON *root, p_xt_ssh ssh)
 }
 
 /**
- *\brief        解析monitor节点数据
+ *\brief                    解析monitor节点数据
  *\param[in]    root        JSON根节点
- *\param[out]   config      配置数据
+ *\param[out]   monitor     配置数据
+ *\param[in]    ssh_count   ssh数量
  *\return                   monitor数量
  */
 int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
@@ -436,7 +439,7 @@ int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
 }
 
 /**
- *\brief        初始化配置
+ *\brief                    初始化配置
  *\param[in]    filename    配置文件名
  *\param[out]   cfg         配置数据
  *\return       0           成功

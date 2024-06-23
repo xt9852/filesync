@@ -1,10 +1,12 @@
 /**
- *\copyright    XT Tech. Co., Ltd.
- *\file         filesync.c
- *\author       xt
- *\version      1.0.0
- *\date         2022.02.08
- *\brief        主模块,UTF-8(No BOM)
+ *\file     filesync.c
+ *\author   xt
+ *\version  1.0.0
+ *\brief    主模块
+ *          时间|事件
+ *          -|-
+ *          2022.02.08|创建文件
+ *          2024.06.23|添加Doxygen注释
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +27,7 @@ xt_list             g_monitor_event_list    = {0};  ///< 监控事件队列
 xt_memory_pool      g_memory_pool           = {0};  ///< 内存池
 
 /**
- *\brief        SSH输出回调
+ *\brief                        SSH输出回调
  *\param[in]    param           用户自定义参数
  *\param[in]    data            数据
  *\param[in]    len             数据长度
@@ -37,7 +39,7 @@ int output(void *param, const char *data, unsigned int len)
 }
 
 /**
- *\brief        将windows路径转成linux路径
+ *\brief                        将windows路径转成linux路径
  *\param[in]    path            路径
  *\param[in]    len             路径长度
  *\return                       无
@@ -54,7 +56,7 @@ void path_to_linux(char *path, int len)
 }
 
 /**
- *\brief        窗体关闭处理函数
+ *\brief                        窗体关闭处理函数
  *\param[in]    wnd             窗体句柄
  *\param[in]    param           自定义参数
  *\return                       无
@@ -70,7 +72,7 @@ void on_menu_exit(HWND wnd, void *param)
 }
 
 /**
- *\brief        监控事件处理线程
+ *\brief                        监控事件处理线程
  *\param[in]    param           无
  *\return                       空
  */
@@ -144,7 +146,7 @@ void* process_monitor_event_thread(void *param)
 }
 
 /**
- *\brief        窗体类程序主函数
+ *\brief                        窗体类程序主函数
  *\param[in]    hInstance       当前实例句柄
  *\param[in]    hPrevInstance   先前实例句柄
  *\param[in]    lpCmdLine       命令行参数

@@ -1,10 +1,12 @@
 /**
- *\copyright    XT Tech. Co., Ltd.
- *\file         config.h
- *\author       xt
- *\version      1.0.0
- *\date         2022.02.08
- *\brief        配置模块定义,UTF-8(No BOM)
+ *\file     config.h
+ *\author   xt
+ *\version  1.0.0
+ *\brief    配置模块定义
+ *          时间|事件
+ *          -|-
+ *          2022.02.08|创建文件
+ *          2024.06.23|添加Doxygen注释
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -12,11 +14,11 @@
 #include "xt_ssh2.h"
 #include "xt_monitor.h"
 
-#define SSH_SIZE    8
-#define MNT_SIZE    8
+#define SSH_SIZE    8                       ///< SSH大小
 
-/// 配置数据
-typedef struct _config
+#define MNT_SIZE    8                       ///< MNT大小
+
+typedef struct _config                      ///  配置数据
 {
     xt_log          log;                    ///< 日志
 
@@ -26,10 +28,10 @@ typedef struct _config
     int             mnt_count;              ///< 监控器数量
     xt_monitor      mnt[MNT_SIZE];          ///< 监控器
 
-} config, *p_config;                        ///< 配置指针
+} config, *p_config;
 
 /**
- *\brief        初始化配置
+ *\brief                    初始化配置
  *\param[in]    filename    配置文件名
  *\param[out]   cfg         配置数据
  *\return       0           成功
