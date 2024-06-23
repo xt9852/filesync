@@ -1,5 +1,6 @@
 /**
  *\file     filesync.c
+ *\note     UTF-8
  *\author   xt
  *\version  1.0.0
  *\brief    主模块

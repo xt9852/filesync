@@ -1,12 +1,10 @@
 /**
  *\file     config.h
+ *\note     UTF-8
  *\author   xt
  *\version  1.0.0
- *\brief    配置模块定义
- *          时间|事件
- *          -|-
- *          2022.02.08|创建文件
- *          2024.06.23|添加Doxygen注释
+ *\date     2022.02.08
+ *\brief    配置模块实现
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_

@@ -1,12 +1,10 @@
 ﻿/**
  *\file     config.c
+ *\note     UTF-8
  *\author   xt
  *\version  1.0.0
+ *\date     2022.02.08
  *\brief    配置模块实现
- *          时间|事件
- *          -|-
- *          2022.02.08|创建文件
- *          2024.06.23|添加Doxygen注释
  */
 #include <stdio.h>
 #include <stdlib.h>
