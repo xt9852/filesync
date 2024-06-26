@@ -18,6 +18,7 @@
 #include "xt_monitor.h"
 #include "xt_ssh2.h"
 #include "xt_notify.h"
+#include "xt_utitly.h"
 #include "config.h"
 #include "resource.h"
 
@@ -79,7 +80,7 @@ void on_menu_exit(HWND wnd, void *param)
  */
 void* process_monitor_event_thread(void *param)
 {
-    D("begin");
+    D("begin\n");
 
     int                len;
     char               cmd[1024];
@@ -90,10 +91,6 @@ void* process_monitor_event_thread(void *param)
     p_xt_ssh           ssh;
     p_xt_monitor       mnt;
     p_xt_monitor_event event;
-
-    sleep(10);
-
-    ssh_send_cmd_sz(&(g_cfg.ssh[0]), "/root/esp/ESP8266_RTOS_SDK/examples/esp8266-test/123.txt", "D:\\5.downloads\\bt\\123.txt");
 
     while (true)
     {
@@ -106,7 +103,7 @@ void* process_monitor_event_thread(void *param)
         mnt = &(g_cfg.mnt[event->monitor_id]);
         ssh = &(g_cfg.ssh[mnt->ssh_id]);
 
-        D("type:%d name:%s cmd:%d monitor_id:%d ssh_id:%d", event->obj_type, event->obj_name, event->cmd, event->monitor_id, mnt->ssh_id);
+        D("type:%d name:%s cmd:%d monitor_id:%d ssh_id:%d\n", event->obj_type, event->obj_name, event->cmd, event->monitor_id, mnt->ssh_id);
 
         switch (event->cmd)
         {
@@ -142,7 +139,7 @@ void* process_monitor_event_thread(void *param)
         }
     }
 
-    D("exit");
+    D("exit\n");
     return NULL;
 }
 
@@ -176,7 +173,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return -1;
     }
 
-    g_cfg.log.root = 21;    // 根目录长度
+    g_cfg.log.root_len = 21;    // 根目录长度
 
     ret = log_init(&(g_cfg.log));
 
@@ -186,27 +183,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return -2;
     }
 
-    D("init log ok");
+    D("init log ok\n");
 
     ret = list_init(&g_monitor_event_list);
 
     if (0 != ret)
     {
-        printf("%s|init log fail\n", __FUNCTION__);
+        E("%s|init log fail\n", __FUNCTION__);
         return -3;
     }
 
-    D("init list ok");
+    D("init list ok\n");
 
     ret = memory_pool_init(&g_memory_pool, 1024, 100);
 
     if (0 != ret)
     {
-        printf("%s|init memory pool fail\n", __FUNCTION__);
+        E("%s|init memory pool fail\n", __FUNCTION__);
         return -4;
     }
 
-    D("init memory pool ok");
+    D("init memory pool ok\n");
 
     for (int i = 0; i < g_cfg.ssh_count; i++)   // 可连接多个服务器
     {
@@ -214,11 +211,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         if (0 != ret)
         {
+            E("%s|init ssh fail\n", __FUNCTION__);
             return -5;
         }
     }
 
-    D("init ssh ok");
+    D("init ssh ok\n");
 
     for (int i = 0; i < g_cfg.mnt_count; i++)   // 可监控多个目录
     {
@@ -226,11 +224,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         if (0 != ret)
         {
+            E("%s|init monitor fail\n", __FUNCTION__);
             return -6;
         }
     }
 
-    D("init monitor ok");
+    D("init monitor ok\n");
 
     pthread_t tid;
     pthread_attr_t attr;
@@ -241,7 +240,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (ret != 0)
     {
-        E("create thread fail, error:%d", ret);
+        E("create thread fail, error:%d\n", ret);
         return -7;
     }
 
@@ -251,9 +250,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (0 != ret)
     {
-        printf("%s|init notify fail\n", __FUNCTION__);
+        E("%s|init notify fail\n", __FUNCTION__);
         return -8;
     }
+
+    D("init notify ok\n");
 
     return notify_loop_msg();
 }

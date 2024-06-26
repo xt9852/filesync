@@ -14,6 +14,10 @@
 #include "cJSON.h"
 #include "xt_log.h"
 
+#ifndef false
+#define false   0
+#endif
+
 /**
  *\brief                    得到文件大小
  *\param[in]    filename    文件名
@@ -205,13 +209,13 @@ int config_log(cJSON *root, p_xt_log log)
 
     log->backup = backup->valueint;
 
-    cJSON *clean_log = cJSON_GetObjectItem(item, "clean_log");      // 可以为空
+    cJSON *clr_log = cJSON_GetObjectItem(item, "clr_log");      // 可以为空
 
-    log->clean_log = (NULL != clean_log) ? clean_log->valueint : false;
+    log->clr_log = (NULL != clr_log) ? clr_log->valueint : false;
 
-    cJSON *clean_file = cJSON_GetObjectItem(item, "clean_file");    // 可以为空
+    cJSON *del_old_file = cJSON_GetObjectItem(item, "del_old_file");    // 可以为空
 
-    log->clean_file = (NULL != clean_file) ? clean_file->valueint : false;
+    log->del_old = (NULL != del_old_file) ? del_old_file->valueint : false;
 
     return 0;
 }

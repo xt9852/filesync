@@ -3,10 +3,10 @@
     {
         "name": "filesync",
         "level": "debug",
-        "cycle": "day",
-        "backup": 7,
-        "clean_log": true,
-        "clean_file": true
+        "cycle": "minute",
+        "backup": 5,
+        "clear_log": true,
+        "del_old_file": true
     },
     "ssh":
     [
@@ -26,8 +26,8 @@
     [
         {
             "ssh":0,
-            "localpath":"D:\\2.code\\2.esp\\esp8266-test\\code",
-            "remotepath":"/root/esp/esp8266-test/code",
+            "localpath":"D:\\2.code\\6.filesync\\test",
+            "remotepath":"/root/test",
             "whitelist":[".*"],
             "blacklist":[]
         }
