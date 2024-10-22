@@ -41,7 +41,7 @@ int config_get_data(const char *filename, char *buf, int len)
 {
     if (NULL == filename || NULL == buf)
     {
-        printf("%s|filename, buf is null", __FUNCTION__);
+        P("filename, buf is null");
         return -1;
     }
 
@@ -49,13 +49,13 @@ int config_get_data(const char *filename, char *buf, int len)
 
     if (0 != fopen_s(&fp, filename, "rb"))
     {
-        printf("%s|open %s fail", __FUNCTION__, filename);
+        P("open config file fail");
         return -2;
     }
 
     if (len != fread(buf, 1, len, fp))
     {
-        printf("%s|read %s fail", __FUNCTION__, filename);
+        P("read config file fail");
         fclose(fp);
         return -3;
     }
@@ -81,27 +81,27 @@ int config_get_json(const char *filename, cJSON **root)
 
     if (size <= 0)
     {
-        printf("%s|get file %s size error\n", __FUNCTION__, filename);
+        P("get config file size fail");
         return -2;
     }
 
-    char *buff = (char*)malloc(size + 16);
+    char *buf = (char*)malloc(size + 16);
 
-    if (NULL == buff)
+    if (NULL == buf)
     {
-        printf("%s|malloc %d fail\n", __FUNCTION__, size + 16);
+        P("malloc buf fail");
         return -3;
     }
 
-    int ret = config_get_data(filename, buff, size);
+    int ret = config_get_data(filename, buf, size);
 
-    *root = (0 == ret) ? cJSON_Parse(buff) : NULL;
+    *root = (0 == ret) ? cJSON_Parse(buf) : NULL;
 
-    free(buff);
+    free(buf);
 
     if (NULL == *root)
     {
-        printf("%s|parse json fail\n", __FUNCTION__);
+        P("parse json string fail");
         return -5;
     }
 
@@ -125,7 +125,7 @@ int config_log(cJSON *root, p_xt_log log)
 
     if (NULL == item)
     {
-        printf("%s|config json no log node\n", __FUNCTION__);
+        P("config json no log node");
         return -2;
     }
 
@@ -133,7 +133,7 @@ int config_log(cJSON *root, p_xt_log log)
 
     if (NULL == name)
     {
-        printf("%s|config json no log.name node\n", __FUNCTION__);
+        P("config json no log.name node");
         return -3;
     }
 
@@ -143,7 +143,7 @@ int config_log(cJSON *root, p_xt_log log)
 
     if (NULL == level)
     {
-        printf("%s|config json no log.level node\n", __FUNCTION__);
+        P("config json no log.level node");
         return -4;
     }
 
@@ -165,7 +165,7 @@ int config_log(cJSON *root, p_xt_log log)
     }
     else
     {
-        printf("%s|config json no log.level value error\n", __FUNCTION__);
+        P("config json no log.level value error");
         return -5;
     }
 
@@ -173,7 +173,7 @@ int config_log(cJSON *root, p_xt_log log)
 
     if (NULL == cycle)
     {
-        printf("%s|config json no log.cycle node\n", __FUNCTION__);
+        P("config json no log.cycle node");
         return -6;
     }
 
@@ -195,7 +195,7 @@ int config_log(cJSON *root, p_xt_log log)
     }
     else
     {
-        printf("%s|config no log.cycle value error\n", __FUNCTION__);
+        P("config no log.cycle value error");
         return -7;
     }
 
@@ -203,19 +203,11 @@ int config_log(cJSON *root, p_xt_log log)
 
     if (NULL == backup)
     {
-        printf("%s|config no log.backup value error\n", __FUNCTION__);
+        P("config no log.backup value error");
         return -8;
     }
 
     log->backup = backup->valueint;
-
-    cJSON *clr_log = cJSON_GetObjectItem(item, "clr_log");      // 可以为空
-
-    log->clr_log = (NULL != clr_log) ? clr_log->valueint : false;
-
-    cJSON *del_old_file = cJSON_GetObjectItem(item, "del_old_file");    // 可以为空
-
-    log->del_old = (NULL != del_old_file) ? del_old_file->valueint : false;
 
     return 0;
 }
@@ -237,7 +229,7 @@ int config_ssh(cJSON *root, p_xt_ssh ssh)
 
     if (NULL == item)
     {
-        printf("%s|config json no ssh node\n", __FUNCTION__);
+        P("config json no ssh node");
         return -2;
     }
 
@@ -245,7 +237,7 @@ int config_ssh(cJSON *root, p_xt_ssh ssh)
 
     if (ssh_count > SSH_SIZE)
     {
-        printf("%s item.item count:%d > %d", __FUNCTION__, ssh_count, SSH_SIZE);
+        P("item.item count too much");
         return -3;
     }
 
@@ -265,7 +257,7 @@ int config_ssh(cJSON *root, p_xt_ssh ssh)
 
         if (NULL == ssh_item)
         {
-            printf("%s no server[%d] node", __FUNCTION__, i);
+            P("no server node error");
             return -4;
         }
 
@@ -277,7 +269,7 @@ int config_ssh(cJSON *root, p_xt_ssh ssh)
 
         if (NULL == addr || NULL == port || NULL == user || NULL == pass || NULL == cmd)
         {
-            printf("%s no ssh[%d].addr,port,user,pass,type node", __FUNCTION__, i);
+            P("no ssh.addr,port,user,pass,type node");
             return -5;
         }
 
@@ -290,7 +282,7 @@ int config_ssh(cJSON *root, p_xt_ssh ssh)
 
         if (ssh[i].cmd_count > CMD_SIZE)
         {
-            printf("%s no ssh[%d].cmd count:%d > %d", __FUNCTION__, i, ssh[i].cmd_count, CMD_SIZE);
+            P("no ssh.cmd count too much");
             return -6;
         }
 
@@ -300,7 +292,7 @@ int config_ssh(cJSON *root, p_xt_ssh ssh)
 
             if (NULL == cmd_item)
             {
-                printf("%s no ssh[%d].cmd[%d] node", __FUNCTION__, i, j);
+                P("no ssh.cmd node");
                 return -7;
             }
 
@@ -333,7 +325,7 @@ int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
 
     if (NULL == item)
     {
-        printf("%s|config json no monitor node\n", __FUNCTION__);
+        P("config json no monitor node");
         return -2;
     }
 
@@ -341,7 +333,7 @@ int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
 
     if (monitor_count > MNT_SIZE)
     {
-        printf("%s monitor.item count:%d > %d", __FUNCTION__, monitor_count, MNT_SIZE);
+        P("monitor.item count too much");
         return -3;
     }
 
@@ -363,7 +355,7 @@ int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
 
         if (NULL == monitor_item)
         {
-            printf("%s no monitor[%d] node", __FUNCTION__, i);
+            P("no monitor node");
             return -4;
         }
 
@@ -375,7 +367,7 @@ int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
 
         if (NULL == ssh || NULL == localpath || NULL == remotpath || NULL == whitelist || NULL == blacklist)
         {
-            printf("%s no monitor[%d].ssh,localpath,remotepath,whitelist,blacklist node", __FUNCTION__, i);
+            P("no monitor.ssh,localpath,remotepath,whitelist,blacklist node");
             return -5;
         }
 
@@ -400,7 +392,7 @@ int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
 
         if (ssh->valueint < 0 || ssh->valueint >= ssh_count)
         {
-            printf("%s monitor[%d].ssh error", __FUNCTION__, i);
+            P("monitor.ssh error");
             return -6;
         }
 
@@ -411,13 +403,13 @@ int config_monitor(cJSON *root, p_xt_monitor monitor, int ssh_count)
 
         if (whitelist_count > WHITELIST_SIZE)
         {
-            printf("%s no monitor[%d].whitelist count:%d > %d", __FUNCTION__, i, whitelist_count, WHITELIST_SIZE);
+            P("no monitor.whitelist count too much");
             return -7;
         }
 
         if (blacklist_count > BLACKLIST_SIZE)
         {
-            printf("%s no monitor[%d].blacklist count:%d > %d", __FUNCTION__, i, blacklist_count, BLACKLIST_SIZE);
+            P("no monitor.blacklist count too much");
             return -8;
         }
 
@@ -450,7 +442,7 @@ int config_init(const char *filename, p_config cfg)
 {
     if (NULL == filename || NULL == cfg)
     {
-        printf("%s param null\n", __FUNCTION__);
+        P("param null");
         return -1;
     }
 
@@ -460,7 +452,6 @@ int config_init(const char *filename, p_config cfg)
 
     if (0 != ret)
     {
-        printf("%s|get config %s data fail:%d\n", __FUNCTION__, filename, ret);
         return -2;
     }
 
@@ -468,7 +459,6 @@ int config_init(const char *filename, p_config cfg)
 
     if (0 != ret)
     {
-        printf("%s|config json log node error:%d\n", __FUNCTION__, ret);
         return -3;
     }
 
@@ -476,7 +466,6 @@ int config_init(const char *filename, p_config cfg)
 
     if (ret <= 0)
     {
-        printf("%s|config json ssh node error:%d\n", __FUNCTION__, ret);
         return -3;
     }
 
@@ -486,12 +475,10 @@ int config_init(const char *filename, p_config cfg)
 
     if (ret <= 0)
     {
-        printf("%s|config json monitor node error:%d\n", __FUNCTION__, ret);
         return -3;
     }
 
     cfg->mnt_count = ret;
 
-    printf("%s|ok\n", __FUNCTION__);
     return 0;
 }

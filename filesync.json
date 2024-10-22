@@ -4,9 +4,7 @@
         "name": "filesync",
         "level": "debug",
         "cycle": "minute",
-        "backup": 5,
-        "clear_log": true,
-        "del_old_file": true
+        "backup": 2
     },
     "ssh":
     [

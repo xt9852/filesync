@@ -169,7 +169,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (0 != ret)
     {
-        printf("%s|init config fail\n", __FUNCTION__);
         return -1;
     }
 
@@ -179,7 +178,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (0 != ret)
     {
-        printf("%s|init log fail\n", __FUNCTION__);
         return -2;
     }
 
