@@ -24,7 +24,7 @@
     [
         {
             "ssh":0,
-            "localpath":"D:\\2.code\\6.filesync\\test",
+            "localpath":"E:\\2.code\\6.filesync\\src",
             "remotepath":"/root/test",
             "whitelist":[".*"],
             "blacklist":[]

@@ -22,11 +22,17 @@
 #include "config.h"
 #include "resource.h"
 
-config              g_cfg                   = {0};  ///< 配置信息
+char                g_path[MAX_PATH]        = "";       ///< 文件路径
 
-xt_list             g_monitor_event_list    = {0};  ///< 监控事件队列
+char               *g_title                 = NULL;     ///< 标题
 
-xt_memory_pool      g_memory_pool           = {0};  ///< 内存池
+xt_log              g_log                   = {0};      ///< 日志文件
+
+xt_list             g_monitor_event_list    = {0};      ///< 监控事件队列
+
+xt_memory_pool      g_memory_pool           = {0};      ///< 内存池
+
+config              g_cfg                   = {&g_log}; ///< 配置信息
 
 /**
  *\brief                        SSH输出回调
@@ -80,7 +86,7 @@ void on_menu_exit(HWND wnd, void *param)
  */
 void* process_monitor_event_thread(void *param)
 {
-    D("begin\n");
+    D("begin");
 
     int                len;
     char               cmd[1024];
@@ -103,7 +109,7 @@ void* process_monitor_event_thread(void *param)
         mnt = &(g_cfg.mnt[event->monitor_id]);
         ssh = &(g_cfg.ssh[mnt->ssh_id]);
 
-        D("type:%d name:%s cmd:%d monitor_id:%d ssh_id:%d\n", event->obj_type, event->obj_name, event->cmd, event->monitor_id, mnt->ssh_id);
+        D("type:%d name:%s cmd:%d monitor_id:%d ssh_id:%d", event->obj_type, event->obj_name, event->cmd, event->monitor_id, mnt->ssh_id);
 
         switch (event->cmd)
         {
@@ -139,7 +145,7 @@ void* process_monitor_event_thread(void *param)
         }
     }
 
-    D("exit\n");
+    D("exit");
     return NULL;
 }
 
@@ -153,55 +159,54 @@ void* process_monitor_event_thread(void *param)
  */
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-    GetModuleFileNameA(hInstance, g_cfg.log.path, MAX_PATH);
+    GetModuleFileNameA(hInstance, g_path, sizeof(g_path));
 
-    char *title = strrchr(g_cfg.log.path, '\\');
-    *title++ = '\0';
+    g_title = strrchr(g_path, '\\');
+    *g_title++ = '\0';
 
-    char *end = strrchr(title, '.');
+    char *end = strrchr(g_title, '.');
     *end = '\0';
 
-    char filename[MAX_PATH];
+    char tmp[MAX_PATH];
+    snprintf(tmp, sizeof(tmp), "%s\\%s.json", g_path, g_title);
 
-    snprintf(filename, MAX_PATH, "%s.json", title);
+    int ret = config_init(tmp, &g_cfg);
 
-    int ret = config_init(filename, &g_cfg);
-
-    if (0 != ret)
+    if (ret != 0)
     {
+        MessageBoxW(NULL, L"配置错误", L"错误", MB_OK);
         return -1;
     }
 
-    g_cfg.log.root_len = 21;    // 根目录长度
-
-    ret = log_init(&(g_cfg.log));
+    ret = log_init(g_path, 21, g_cfg.log);  // 21是当前代码的根目录长度,日志中只保留代码的相对路径
 
     if (0 != ret)
     {
+        MessageBoxW(NULL, L"日志错误", L"错误", MB_OK);
         return -2;
     }
 
-    D("init log ok\n");
+    D("init log ok");
 
     ret = list_init(&g_monitor_event_list);
 
     if (0 != ret)
     {
-        E("%s|init log fail\n", __FUNCTION__);
+        E("%s|init log fail", __FUNCTION__);
         return -3;
     }
 
-    D("init list ok\n");
+    D("init list ok");
 
     ret = memory_pool_init(&g_memory_pool, 1024, 100);
 
     if (0 != ret)
     {
-        E("%s|init memory pool fail\n", __FUNCTION__);
+        E("%s|init memory pool fail", __FUNCTION__);
         return -4;
     }
 
-    D("init memory pool ok\n");
+    D("init memory pool ok");
 
     for (int i = 0; i < g_cfg.ssh_count; i++)   // 可连接多个服务器
     {
@@ -209,12 +214,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         if (0 != ret)
         {
-            E("%s|init ssh fail\n", __FUNCTION__);
+            E("%s|init ssh fail", __FUNCTION__);
             return -5;
         }
     }
 
-    D("init ssh ok\n");
+    D("init ssh ok");
 
     for (int i = 0; i < g_cfg.mnt_count; i++)   // 可监控多个目录
     {
@@ -222,12 +227,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         if (0 != ret)
         {
-            E("%s|init monitor fail\n", __FUNCTION__);
+            E("%s|init monitor fail", __FUNCTION__);
             return -6;
         }
     }
 
-    D("init monitor ok\n");
+    D("init monitor ok");
 
     pthread_t tid;
     pthread_attr_t attr;
@@ -238,21 +243,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (ret != 0)
     {
-        E("create thread fail, error:%d\n", ret);
+        E("create thread fail, error:%d", ret);
         return -7;
     }
 
-    notify_menu_info menu[] = { {0, L"退出(&E)", NULL, on_menu_exit} };
+    notify_menu_info menu[] = { {L"退出(&E)", NULL, on_menu_exit} };
 
     ret = notify_init(hInstance, IDI_GREEN, "filesync", SIZEOF(menu), menu);
 
     if (0 != ret)
     {
-        E("%s|init notify fail\n", __FUNCTION__);
+        E("%s|init notify fail", __FUNCTION__);
         return -8;
     }
 
-    D("init notify ok\n");
+    D("init notify ok");
 
     return notify_loop_msg();
 }

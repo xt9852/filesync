@@ -455,7 +455,7 @@ int config_init(const char *filename, p_config cfg)
         return -2;
     }
 
-    ret = config_log(root, &(cfg->log));
+    ret = config_log(root, cfg->log);
 
     if (0 != ret)
     {

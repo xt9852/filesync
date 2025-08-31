@@ -18,7 +18,7 @@
 
 typedef struct _config                      ///  配置数据
 {
-    xt_log          log;                    ///< 日志
+    p_xt_log        log;                    ///< 日志
 
     int             ssh_count;              ///< 服务器数量
     xt_ssh          ssh[SSH_SIZE];          ///< 服务器
