@@ -3,8 +3,7 @@
     {
         "name": "filesync",
         "level": "debug",
-        "cycle": "minute",
-        "backup": 2
+        "backup": 1
     },
     "ssh":
     [
