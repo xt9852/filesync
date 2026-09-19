@@ -64,22 +64,6 @@ void path_to_linux(char *path, int len)
 }
 
 /**
- *\brief                        窗体关闭处理函数
- *\param[in]    wnd             窗体句柄
- *\param[in]    param           自定义参数
- *\return                       无
- */
-void on_menu_exit(HWND wnd, void *param)
-{
-    if (IDNO == MessageBoxW(wnd, L"确定退出?", L"消息", MB_ICONQUESTION | MB_YESNO))
-    {
-        return;
-    }
-
-    DestroyWindow(wnd);
-}
-
-/**
  *\brief                        监控事件处理线程
  *\param[in]    param           无
  *\return                       空
@@ -147,6 +131,48 @@ void* process_monitor_event_thread(void *param)
 
     D("exit");
     return NULL;
+}
+
+/**
+ *\brief                        打开配置处理函数
+ *\param[in]    wnd             窗体句柄
+ *\param[in]    param           自定义参数
+ *\return                       无
+ */
+void on_menu_config(HWND wnd, void *param)
+{
+    char tmp[MAX_PATH];
+    snprintf(tmp, sizeof(tmp), "%s\\%s.json", g_path, g_title);
+    ShellExecuteA(NULL, "open", tmp, NULL, NULL, SW_HIDE);
+}
+
+/**
+ *\brief                        打开日志函数
+ *\param[in]    wnd             窗体句柄
+ *\param[in]    param           自定义参数
+ *\return                       无
+ */
+void on_menu_log(HWND wnd, void *param)
+{
+    char tmp[MAX_PATH];
+    snprintf(tmp, sizeof(tmp), "%s\\%s.%d.log", g_log.path, g_log.filename, g_log.date);
+    ShellExecuteA(NULL, "open", tmp, NULL, NULL, SW_HIDE);
+}
+
+/**
+ *\brief                        窗体关闭处理函数
+ *\param[in]    wnd             窗体句柄
+ *\param[in]    param           自定义参数
+ *\return                       无
+ */
+void on_menu_exit(HWND wnd, void *param)
+{
+    if (IDNO == MessageBoxW(wnd, L"确定退出?", L"消息", MB_ICONQUESTION | MB_YESNO))
+    {
+        return;
+    }
+
+    DestroyWindow(wnd);
 }
 
 /**
@@ -247,7 +273,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return -7;
     }
 
-    notify_menu_info menu[] = { {L"退出(&E)", NULL, on_menu_exit} };
+    notify_menu_info menu[] = {
+        { L"打开配置(&C)", NULL, on_menu_config },
+        { L"打开日志(&C)", NULL, on_menu_log },
+        { L"退出程序(&E)", NULL, on_menu_exit } 
+    };
 
     ret = notify_init(hInstance, IDI_GREEN, "filesync", SIZEOF(menu), menu);
 
